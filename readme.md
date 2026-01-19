@@ -1,198 +1,259 @@
-Perfect! I’ll complete your README by adding the **Get All Products** section and clean up the formatting so everything is in **one file**. Here’s the full `README.md`:
+
+````markdown
+# 🛠 User, Product & Payment API Guide
+
+A simple **Express.js + MongoDB + JWT + Stripe** API for managing users, products, and orders with payment integration (Stripe test mode).
 
 ---
 
-```markdown
-# Backend API Documentation
+## 1️⃣ Environment Setup
 
-This document provides instructions for using the backend APIs of your project with **Postman**.
+Install dependencies:
 
-## Base URL
-
+```bash
+npm install express mongoose bcryptjs jsonwebtoken cors stripe dotenv
+npm run dev
 ```
 
-[http://localhost:5000](http://localhost:5000)
-
-````
+Server runs on `http://localhost:5000`.
 
 ---
 
-## 1. User Registration
+## 2️⃣ Flow Diagram
 
-**Endpoint:** `/register`  
-**Method:** `POST`  
-**Description:** Create a new user account.
+```
+[Client / Postman]
+      |
+      v
+[Register / Login] --JWT--> [Profile / Products / Orders]
+      |
+      v
+[Order Creation] --Stripe PaymentIntent--> [Webhook]
+      |
+      v
+[Order Status Updated in MongoDB]
+```
 
-**Request Body (JSON):**
+---
+
+## 3️⃣ Postman Workflow
+
+### a) Register User
+
+**POST** `http://localhost:5000/register`
+
+Headers:
+
+```
+Content-Type: application/json
+```
+
+Body:
 
 ```json
 {
-  "name": "John Doe",
-  "email": "john@example.com",
-  "password": "password123"
+  "name": "Junaid",
+  "email": "junaid@test.com",
+  "password": "123456"
 }
-````
+```
 
-**Response Example:**
+Response:
 
 ```json
 {
   "message": "User registered successfully",
   "user": {
-    "id": "12345",
-    "name": "John Doe",
-    "email": "john@example.com"
+    "id": "...",
+    "name": "Junaid",
+    "email": "junaid@test.com",
+    "userCreatedAt": "...",
+    "userUpdatedAt": "..."
   }
 }
 ```
 
-**Postman Steps:**
+---
 
-1. Open Postman and create a new request.
-2. Set the method to `POST`.
-3. Set the URL to `http://localhost:5000/register`.
-4. Go to the `Body` tab → select `raw` → choose `JSON`.
-5. Paste the JSON request body above.
-6. Click `Send`.
+### b) Login
+
+**POST** `http://localhost:5000/login`
+
+Body:
+
+```json
+{
+  "email": "junaid@test.com",
+  "password": "123456"
+}
+```
+
+Response:
+
+```json
+{
+  "token": "<JWT_TOKEN>",
+  "user": { "id": "...", "name": "Junaid", "email": "junaid@test.com" }
+}
+```
+
+> Save `<JWT_TOKEN>` for protected routes.
 
 ---
 
-## 2. User Login
+### c) Protected Route: Profile
 
-**Endpoint:** `/login`
-**Method:** `POST`
-**Description:** Log in an existing user.
+**GET** `http://localhost:5000/profile`
 
-**Request Body (JSON):**
+Headers:
+
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+Response:
 
 ```json
 {
-  "email": "john@example.com",
-  "password": "password123"
+  "id": "...",
+  "name": "Junaid",
+  "email": "junaid@test.com"
 }
 ```
-
-**Response Example:**
-
-```json
-{
-  "message": "Login successful",
-  "token": "eyJhbGciOiJIUzI1NiIsInR..."
-}
-```
-
-**Postman Steps:**
-
-1. Create a new request → `POST`.
-2. URL: `http://localhost:5000/login`.
-3. Body → `raw` → `JSON`.
-4. Paste the login JSON.
-5. Click `Send`.
-6. Copy the `token` from the response for authenticated requests.
 
 ---
 
-## 3. Get User Profile
+### d) Create Product
 
-**Endpoint:** `/profile`
-**Method:** `GET`
-**Description:** Retrieve the logged-in user’s profile.
+**POST** `http://localhost:5000/products`
 
-**Headers:**
+Headers:
 
 ```
-Authorization: Bearer <your_token_here>
+Authorization: Bearer <JWT_TOKEN>
+Content-Type: application/json
 ```
 
-**Response Example:**
+Body:
 
 ```json
 {
-  "id": "12345",
-  "name": "John Doe",
-  "email": "john@example.com"
+  "name": "Premium Plan",
+  "description": "Full access to services",
+  "price": 99,
+  "category": "Subscription"
 }
 ```
 
-**Postman Steps:**
-
-1. Create a new request → `GET`.
-2. URL: `http://localhost:5000/profile`.
-3. Go to the `Headers` tab → Key: `Authorization`, Value: `Bearer <token>`.
-4. Click `Send`.
-
----
-
-## 4. Create Product
-
-**Endpoint:** `/products`
-**Method:** `POST`
-**Description:** Create a new product.
-
-**Headers:**
-
-```
-Authorization: Bearer <your_token_here>
-```
-
-**Request Body (JSON):**
+Response:
 
 ```json
 {
-  "name": "Laptop",
-  "price": 1200,
-  "description": "High performance laptop"
-}
-```
-
-**Response Example:**
-
-```json
-{
-  "message": "Product created successfully",
+  "message": "Product created",
   "product": {
-    "id": "98765",
-    "name": "Laptop",
-    "price": 1200,
-    "description": "High performance laptop"
+    "id": "...",
+    "name": "Premium Plan",
+    "price": 99
   }
 }
 ```
 
-**Postman Steps:**
+---
 
-1. Create a new request → `POST`.
-2. URL: `http://localhost:5000/products`.
-3. Headers → `Authorization: Bearer <token>`.
-4. Body → `raw` → `JSON`.
-5. Paste the product JSON.
-6. Click `Send`.
+### e) List Products
+
+**GET** `http://localhost:5000/products`
+No auth required
+
+Response:
+
+```json
+[
+  {
+    "id": "...",
+    "name": "Premium Plan",
+    "price": 99,
+    "createdAt": "...",
+    "updatedAt": "..."
+  }
+]
+```
 
 ---
 
-## 5. Get All Products
+### f) Create Order & Initiate Stripe Payment
 
-**Endpoint:** `/products`
-**Method:** `GET`
-**Description:** Retrieve a list of all products.
+**POST** `http://localhost:5000/orders`
 
-**Response Example:**
+Headers:
 
-```json
-
-  {
-    "id": "98765",
-    "name": "Laptop",
-    "price": 1200,
-    "description": "High performance laptop"
-  }
+```
+Authorization: Bearer <JWT_TOKEN>
+Content-Type: application/json
 ```
 
-**Postman Steps:**
+Body:
 
-1. Create a new request → `GET`.
-2. URL: `http://localhost:5000/products`.
-3. (Optional) If your API requires authentication, add header → `Authorization: Bearer <token>`.
-4. Click `Send`.
+```json
+{
+  "product": "Premium Plan",
+  "amount": 99
+}
+```
+
+Response:
+
+```json
+{
+  "message": "Order created, payment initiated",
+  "order": {
+    "id": "...",
+    "product": "Premium Plan",
+    "amount": 99,
+    "status": "pending"
+  },
+  "clientSecret": "<STRIPE_CLIENT_SECRET>"
+}
+```
+
+> Use `clientSecret` in frontend/Stripe checkout.
+
+---
+
+### g) Stripe Webhook (Payment Success / Failure)
+
+**POST** `http://localhost:5000/webhook`
+
+Stripe automatically sends payment events:
+
+* `payment_intent.succeeded` → order `status = success`
+* `payment_intent.payment_failed` → order `status = failed`
+
+Response:
+
+```json
+{ "received": true }
+```
+
+**Note:** In production, Stripe verifies the webhook signature using `STRIPE_WEBHOOK_SECRET`.
+
+---
+
+## 4️⃣ Best Practices
+
+1. Store sensitive keys in `.env`
+2. Passwords hashed with bcrypt
+3. JWT expires in 7 days
+4. Orders track status: `pending | success | failed`
+5. Use ngrok for local webhook testing
+6. Always verify Stripe webhook signature in production
+
+---
+
+## 5️⃣ Postman Collection Suggestion
+
+1. **User:** Register → Login → Profile
+2. **Product:** Create → List
+3. **Order:** Create → Check clientSecret → Test webhook
 
 ---

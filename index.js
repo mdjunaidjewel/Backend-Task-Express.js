@@ -3,10 +3,22 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const cors = require("cors");
+const Stripe = require("stripe");
 require("dotenv").config();
 
 const app = express();
 app.use(cors());
+
+// Stripe setup
+const stripe = Stripe(process.env.STRIPE_SECRET);
+
+// Use raw body for Stripe webhook verification
+app.use(
+  "/webhook",
+  express.raw({ type: "application/json" })
+);
+
+// Other routes use JSON
 app.use(express.json());
 
 /* -------------------- DB CONNECT -------------------- */
@@ -22,12 +34,7 @@ const UserSchema = new mongoose.Schema(
     email: { type: String, unique: true },
     password: String,
   },
-  {
-    timestamps: {
-      createdAt: "userCreatedAt",
-      updatedAt: "userUpdatedAt",
-    },
-  }
+  { timestamps: { createdAt: "userCreatedAt", updatedAt: "userUpdatedAt" } }
 );
 
 const User = mongoose.model("User", UserSchema);
@@ -35,12 +42,10 @@ const User = mongoose.model("User", UserSchema);
 /* -------------------- AUTH MIDDLEWARE -------------------- */
 const auth = (req, res, next) => {
   const authHeader = req.headers.authorization;
-
   if (!authHeader || !authHeader.startsWith("Bearer "))
     return res.status(401).json({ message: "No token" });
 
   const token = authHeader.split(" ")[1];
-
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
@@ -51,27 +56,20 @@ const auth = (req, res, next) => {
 };
 
 /* -------------------- ROUTES -------------------- */
+
+// Register
 app.post("/register", async (req, res) => {
   try {
     const { name, email, password } = req.body;
+    if (!name || !email || !password)
+      return res.status(400).json({ message: "All fields required" });
 
-    // 1. Check user exists
     const userExists = await User.findOne({ email });
-    if (userExists) {
-      return res.status(400).json({ message: "User already exists" });
-    }
+    if (userExists) return res.status(400).json({ message: "User already exists" });
 
-    // 2. Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await User.create({ name, email, password: hashedPassword });
 
-    // 3. Save user to MongoDB
-    const user = await User.create({
-      name,
-      email,
-      password: hashedPassword,
-    });
-
-    // 4. Response
     res.status(201).json({
       message: "User registered successfully",
       user: {
@@ -92,6 +90,8 @@ app.post("/register", async (req, res) => {
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
+    if (!email || !password)
+      return res.status(400).json({ message: "All fields required" });
 
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "Invalid credentials" });
@@ -101,10 +101,7 @@ app.post("/login", async (req, res) => {
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
-    res.json({
-      token,
-      user: { id: user._id, name: user.name, email: user.email },
-    });
+    res.json({ token, user: { id: user._id, name: user.name, email: user.email } });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
@@ -132,9 +129,7 @@ const ProductSchema = new mongoose.Schema(
     price: { type: Number, required: true },
     category: String,
   },
-  {
-    timestamps: true, // createdAt & updatedAt automatically
-  }
+  { timestamps: true }
 );
 
 const Product = mongoose.model("Product", ProductSchema);
@@ -143,9 +138,7 @@ const Product = mongoose.model("Product", ProductSchema);
 app.post("/products", auth, async (req, res) => {
   try {
     const { name, description, price, category } = req.body;
-    if (!name || !price) {
-      return res.status(400).json({ message: "Name and price are required" });
-    }
+    if (!name || !price) return res.status(400).json({ message: "Name and price required" });
 
     const product = await Product.create({ name, description, price, category });
     res.status(201).json({ message: "Product created", product });
@@ -155,7 +148,7 @@ app.post("/products", auth, async (req, res) => {
   }
 });
 
-// List All Products
+// List Products
 app.get("/products", async (req, res) => {
   try {
     const products = await Product.find().sort({ createdAt: -1 });
@@ -166,13 +159,85 @@ app.get("/products", async (req, res) => {
   }
 });
 
-// Test
-app.get("/", (req, res) => {
-  res.send("Server Finally Running...");
+/* -------------------- ORDER MODEL -------------------- */
+const OrderSchema = new mongoose.Schema(
+  {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    product: { type: String, required: true },
+    amount: { type: Number, required: true },
+    status: { type: String, enum: ["pending", "success", "failed"], default: "pending" },
+    paymentId: String,
+  },
+  { timestamps: true }
+);
+
+const Order = mongoose.model("Order", OrderSchema);
+
+// Create Order + Stripe PaymentIntent
+app.post("/orders", auth, async (req, res) => {
+  try {
+    const { product, amount } = req.body;
+    if (!product || !amount) return res.status(400).json({ message: "Product and amount required" });
+
+    const order = await Order.create({ user: req.user.id, product, amount, status: "pending" });
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amount * 100,
+      currency: "usd",
+      metadata: { orderId: order._id.toString() },
+    });
+
+    res.status(201).json({ message: "Order created, payment initiated", order, clientSecret: paymentIntent.client_secret });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
 });
+
+// Stripe Webhook (signature verification)
+app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+  const sig = req.headers["stripe-signature"];
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET; // set in .env
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+  } catch (err) {
+    console.error("Webhook signature verification failed:", err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  try {
+    if (event.type === "payment_intent.succeeded") {
+      const paymentIntent = event.data.object;
+      const order = await Order.findById(paymentIntent.metadata.orderId);
+      if (order) {
+        order.status = "success";
+        order.paymentId = paymentIntent.id;
+        await order.save();
+      }
+    }
+
+    if (event.type === "payment_intent.payment_failed") {
+      const paymentIntent = event.data.object;
+      const order = await Order.findById(paymentIntent.metadata.orderId);
+      if (order) {
+        order.status = "failed";
+        order.paymentId = paymentIntent.id;
+        await order.save();
+      }
+    }
+
+    res.json({ received: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Webhook processing error" });
+  }
+});
+
+// Test
+app.get("/", (req, res) => res.send("Server Running..."));
 
 /* -------------------- SERVER -------------------- */
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on ${PORT}`));
