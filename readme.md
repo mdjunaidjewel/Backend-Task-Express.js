@@ -21,5 +21,5 @@ Value: application/json
   "name": "Junaid",
   "email": "junaid@test.com",
   "password": "123456"
-}
+}```
 ### 4️⃣ Send Request Click Send
