@@ -16,11 +16,19 @@ mongoose
   .catch((err) => console.log(err));
 
 /* -------------------- USER MODEL -------------------- */
-const UserSchema = new mongoose.Schema({
-  name: String,
-  email: { type: String, unique: true },
-  password: String,
-});
+const UserSchema = new mongoose.Schema(
+  {
+    name: String,
+    email: { type: String, unique: true },
+    password: String,
+  },
+  {
+    timestamps: {
+      createdAt: "userCreatedAt",
+      updatedAt: "userUpdatedAt",
+    },
+  }
+);
 
 const User = mongoose.model("User", UserSchema);
 
@@ -43,54 +51,82 @@ const auth = (req, res, next) => {
 };
 
 /* -------------------- ROUTES -------------------- */
+app.post("/register", async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
 
-// Register
-app.post("/api/register", async (req, res) => {
-  const { name, email, password } = req.body;
+    // 1. Check user exists
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(400).json({ message: "User already exists" });
+    }
 
-  const userExists = await User.findOne({ email });
-  if (userExists)
-    return res.status(400).json({ message: "User already exists" });
+    // 2. Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+    // 3. Save user to MongoDB
+    const user = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+    });
 
-  await User.create({ name, email, password: hashedPassword });
-  res.status(201).json({ message: "User registered" });
+    // 4. Response
+    res.status(201).json({
+      message: "User registered successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        userCreatedAt: user.userCreatedAt,
+        userUpdatedAt: user.userUpdatedAt,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 // Login
-app.post("/api/login", async (req, res) => {
-  const { email, password } = req.body;
+app.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
 
-  const user = await User.findOne({ email });
-  if (!user)
-    return res.status(400).json({ message: "Invalid credentials" });
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ message: "Invalid credentials" });
 
-  const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch)
-    return res.status(400).json({ message: "Invalid credentials" });
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
 
-  const token = jwt.sign(
-    { id: user._id },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" }
-  );
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
-  res.json({
-    token,
-    user: { id: user._id, name: user.name, email: user.email },
-  });
+    res.json({
+      token,
+      user: { id: user._id, name: user.name, email: user.email },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 // Profile
-app.get("/api/me", auth, async (req, res) => {
-  const user = await User.findById(req.user.id).select("-password");
-  res.json(user);
+app.get("/profile", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.json(user);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 // Test
 app.get("/", (req, res) => {
-  res.send("API Running...");
+  res.send("Server Finally Running...");
 });
 
 /* -------------------- SERVER -------------------- */
