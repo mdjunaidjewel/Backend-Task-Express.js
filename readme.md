@@ -1,8 +1,7 @@
 
-````markdown
-# 🛠 User, Product & Payment API Guide
+# 🛠 E-Commerce / Subscription API Guide
 
-A simple **Express.js + MongoDB + JWT + Stripe** API for managing users, products, and orders with payment integration (Stripe test mode).
+A **RESTful backend** using **Express.js + MongoDB + JWT + Stripe**. Handles **User Auth, Products, Orders**, and **Stripe payment integration**.
 
 ---
 
@@ -15,11 +14,11 @@ npm install express mongoose bcryptjs jsonwebtoken cors stripe dotenv
 npm run dev
 ```
 
-Server runs on `http://localhost:5000`.
+Server runs at `http://localhost:5000`.
 
 ---
 
-## 2️⃣ Flow Diagram
+## 2️⃣ REST API Flow Diagram
 
 ```
 [Client / Postman]
@@ -36,7 +35,7 @@ Server runs on `http://localhost:5000`.
 
 ---
 
-## 3️⃣ Postman Workflow
+## 3️⃣ Postman Step-by-Step Workflow
 
 ### a) Register User
 
@@ -101,7 +100,7 @@ Response:
 
 ---
 
-### c) Protected Route: Profile
+### c) Get Logged-in User Profile
 
 **GET** `http://localhost:5000/profile`
 
@@ -163,7 +162,6 @@ Response:
 ### e) List Products
 
 **GET** `http://localhost:5000/products`
-No auth required
 
 Response:
 
@@ -216,7 +214,7 @@ Response:
 }
 ```
 
-> Use `clientSecret` in frontend/Stripe checkout.
+> Use `clientSecret` in frontend Stripe checkout.
 
 ---
 
@@ -224,7 +222,7 @@ Response:
 
 **POST** `http://localhost:5000/webhook`
 
-Stripe automatically sends payment events:
+Stripe automatically sends events:
 
 * `payment_intent.succeeded` → order `status = success`
 * `payment_intent.payment_failed` → order `status = failed`
@@ -235,25 +233,24 @@ Response:
 { "received": true }
 ```
 
-**Note:** In production, Stripe verifies the webhook signature using `STRIPE_WEBHOOK_SECRET`.
+**Note:** Stripe verifies webhook signature using `STRIPE_WEBHOOK_SECRET` for security.
 
 ---
 
 ## 4️⃣ Best Practices
 
-1. Store sensitive keys in `.env`
+1. Keep `.env` secret keys safe
 2. Passwords hashed with bcrypt
 3. JWT expires in 7 days
 4. Orders track status: `pending | success | failed`
 5. Use ngrok for local webhook testing
-6. Always verify Stripe webhook signature in production
+6. Verify Stripe webhook signature in production
 
 ---
 
-## 5️⃣ Postman Collection Suggestion
+## 5️⃣ Postman Workflow Summary
 
-1. **User:** Register → Login → Profile
-2. **Product:** Create → List
-3. **Order:** Create → Check clientSecret → Test webhook
+1. **User Flow:** Register → Login → Profile
+2. **Product Flow:** Create → List
+3. **Order Flow:** Create → Stripe PaymentIntent → Webhook updates status
 
----
