@@ -124,6 +124,48 @@ app.get("/profile", auth, async (req, res) => {
   }
 });
 
+/* -------------------- PRODUCT MODEL -------------------- */
+const ProductSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    description: String,
+    price: { type: Number, required: true },
+    category: String,
+  },
+  {
+    timestamps: true, // createdAt & updatedAt automatically
+  }
+);
+
+const Product = mongoose.model("Product", ProductSchema);
+
+// Create Product
+app.post("/products", auth, async (req, res) => {
+  try {
+    const { name, description, price, category } = req.body;
+    if (!name || !price) {
+      return res.status(400).json({ message: "Name and price are required" });
+    }
+
+    const product = await Product.create({ name, description, price, category });
+    res.status(201).json({ message: "Product created", product });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// List All Products
+app.get("/products", async (req, res) => {
+  try {
+    const products = await Product.find().sort({ createdAt: -1 });
+    res.json(products);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // Test
 app.get("/", (req, res) => {
   res.send("Server Finally Running...");
