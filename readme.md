@@ -14,7 +14,7 @@ npm install express mongoose bcryptjs jsonwebtoken cors stripe dotenv
 npm run dev
 ```
 
-Server runs at `http://localhost:5000`.
+Server runs at `https://ecommerce-api-pearl-six.vercel.app/`.
 
 ---
 
@@ -39,7 +39,7 @@ Server runs at `http://localhost:5000`.
 
 ### a) Register User
 
-**POST** `http://localhost:5000/register`
+**POST** `https://ecommerce-api-pearl-six.vercel.app/register`
 
 Headers:
 
@@ -76,7 +76,7 @@ Response:
 
 ### b) Login
 
-**POST** `http://localhost:5000/login`
+**POST** `https://ecommerce-api-pearl-six.vercel.app/login`
 
 Body:
 
@@ -102,7 +102,7 @@ Response:
 
 ### c) Get Logged-in User Profile
 
-**GET** `http://localhost:5000/profile`
+**GET** `https://ecommerce-api-pearl-six.vercel.app/profile`
 
 Headers:
 
@@ -124,7 +124,7 @@ Response:
 
 ### d) Create Product
 
-**POST** `http://localhost:5000/products`
+**POST** `https://ecommerce-api-pearl-six.vercel.app/products`
 
 Headers:
 
@@ -161,7 +161,7 @@ Response:
 
 ### e) List Products
 
-**GET** `http://localhost:5000/products`
+**GET** `https://ecommerce-api-pearl-six.vercel.app/products`
 
 Response:
 
@@ -181,7 +181,7 @@ Response:
 
 ### f) Create Order & Initiate Stripe Payment
 
-**POST** `http://localhost:5000/orders`
+**POST** `https://ecommerce-api-pearl-six.vercel.app/orders`
 
 Headers:
 
@@ -220,7 +220,7 @@ Response:
 
 ### g) Stripe Webhook (Payment Success / Failure)
 
-**POST** `http://localhost:5000/webhook`
+**POST** `https://ecommerce-api-pearl-six.vercel.app/webhook`
 
 Stripe automatically sends events:
 
