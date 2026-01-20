@@ -194,6 +194,17 @@ app.post("/orders", auth, async (req, res) => {
   }
 });
 
+// List all orders for logged-in user
+app.get("/orders", auth, async (req, res) => {
+  try {
+    const orders = await Order.find({ user: req.user.id }).sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // Stripe Webhook (signature verification)
 app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
   const sig = req.headers["stripe-signature"];
